@@ -7,7 +7,7 @@
     "url": "https://github.com/local-user/github-paste-plugin"
   },
   "description": "Custom paste image, video, audio, or file to GitHub",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "engines": {
     "vscode": "^1.70.0"
   },
