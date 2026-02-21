@@ -1,13 +1,14 @@
 {
   "name": "github-paste-plugin",
   "displayName": "GitHub Paste Plugin",
-  "publisher": "local-user",
+  "publisher": "huangwenxuan",
   "repository": {
     "type": "git",
     "url": "https://github.com/local-user/github-paste-plugin"
   },
   "description": "Custom paste image, video, audio, or file to GitHub",
-  "version": "0.0.2",
+  "icon": "images/icon.png",
+  "version": "0.0.3",
   "engines": {
     "vscode": "^1.70.0"
   },
