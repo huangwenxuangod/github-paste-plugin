@@ -5,7 +5,10 @@
 ## 功能特性
 
 - **自动图片上传**：检测剪贴板中的图片并将其上传到指定的 GitHub 仓库。
-- **智能粘贴**：如果剪贴板中包含文本，则执行标准粘贴操作。只有检测到图片时才会触发上传。
+- **视频上传支持**：支持复制视频文件（.mp4, .mov, .webm 等）并上传，自动插入 `<video>` 标签。
+- **音频上传支持**：支持复制音频文件（.mp3, .wav 等）并上传，自动插入 `<audio>` 标签。
+- **其他文件支持**：支持复制其他类型文件（如 .pdf, .zip, .docx）上传，自动插入下载链接。
+- **智能粘贴**：如果剪贴板中包含文本，则执行标准粘贴操作。只有检测到图片或文件时才会触发上传。
 - **CDN 加速**：插入上传图片的 `jsDelivr` 链接，确保图片加载速度快。
 - **时间戳命名**：根据当前时间戳自动命名文件，避免文件名冲突。
 - **Markdown 支持**：专为 Markdown 编辑（`.md` 文件）设计。
@@ -40,11 +43,23 @@
 3.  按下 `Ctrl+V`（macOS 上为 `Cmd+V`）。
 4.  插件将执行以下操作：
     - 检查剪贴板中是否有文本。如果有，直接粘贴文本。
-    - 如果没有文本，则将图片上传到你配置的 GitHub 仓库（存放在 `assets/` 目录下）。
-    - 插入指向 jsDelivr CDN URL 的 Markdown 图片链接。
+    - 如果没有文本，则将图片、视频或文件上传到你配置的 GitHub 仓库（存放在 `assets/` 目录下）。
+    - 如果是图片，插入 Markdown 图片链接。
+    - 如果是视频，插入 HTML `<video>` 标签。
+    - 如果是音频，插入 HTML `<audio>` 标签。
+    - 如果是其他文件，插入文件下载链接。
 
    ```markdown
    ![](https://cdn.jsdelivr.net/gh/username/repository/assets/1678899000000.png)
+   
+   <!-- 视频 -->
+   <video src="https://cdn.jsdelivr.net/gh/username/repository/assets/1678899000000.mp4" controls width="100%"></video>
+
+   <!-- 音频 -->
+   <audio src="https://cdn.jsdelivr.net/gh/username/repository/assets/1678899000000.mp3" controls></audio>
+   
+   <!-- 其他文件 -->
+   [document.pdf](https://cdn.jsdelivr.net/gh/username/repository/assets/1678899000000.pdf)
    ```
 
 ## 开发

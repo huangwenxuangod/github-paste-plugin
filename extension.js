@@ -32,61 +32,159 @@ function activate(context) {
              return;
         }
 
-        // 2. 从剪贴板获取图片 (Windows PowerShell 脚本)
-        const scriptPath = path.join(__dirname, 'get-image.ps1');
+        // 2. 从剪贴板获取图片或文件 (Windows PowerShell 脚本)
+        const scriptPath = path.join(__dirname, 'get-clipboard.ps1');
         const tempPath = path.join(require('os').tmpdir(), `temp_image_${Date.now()}.png`);
+        const resultJsonPath = path.join(require('os').tmpdir(), `clipboard_result_${Date.now()}.json`);
         
-        // 创建简单的 PowerShell 脚本来保存剪贴板图片
+        // 创建 PowerShell 脚本来保存剪贴板图片或获取文件路径，并将结果写入 JSON 文件以避免乱码
         const psScript = `
 Add-Type -AssemblyName System.Windows.Forms
-$img = [System.Windows.Forms.Clipboard]::GetImage()
-if ($img -ne $null) {
-    $img.Save('${tempPath}', [System.Drawing.Imaging.ImageFormat]::Png)
-    Write-Output "Saved"
-} else {
-    Write-Output "NoImage"
+$clip = [System.Windows.Forms.Clipboard]
+
+$result = @{
+    status = "NoContent"
+    path = ""
+    type = ""
 }
+
+if ($clip::ContainsImage()) {
+    $img = $clip::GetImage()
+    $img.Save('${tempPath}', [System.Drawing.Imaging.ImageFormat]::Png)
+    $result.status = "success"
+    $result.type = "image"
+    $result.path = "${tempPath}"
+}
+elseif ($clip::ContainsFileDropList()) {
+    $files = $clip::GetFileDropList()
+    if ($files.Count -gt 0) {
+        $filePath = $files[0]
+        $result.status = "success"
+        $result.type = "file"
+        $result.path = $filePath
+    }
+}
+
+$result | ConvertTo-Json -Compress | Out-File -FilePath "${resultJsonPath}" -Encoding utf8
 `;
         fs.writeFileSync(scriptPath, psScript);
 
-        vscode.window.setStatusBarMessage('Uploading image...', 3000);
+        vscode.window.setStatusBarMessage('Processing clipboard content...', 3000);
 
         exec(`powershell -ExecutionPolicy Bypass -File "${scriptPath}"`, async (err, stdout, stderr) => {
             // 清理脚本
             if(fs.existsSync(scriptPath)) fs.unlinkSync(scriptPath);
 
-            if (stdout.trim().includes("NoImage")) {
-                // 如果没有图片，也执行默认粘贴（防止误判）
-                outputChannel.appendLine('剪贴板里没有图片，执行默认粘贴');
+            if (err) {
+                outputChannel.appendLine(`PowerShell 脚本执行错误: ${err.message}`);
+            }
+            if (stderr) {
+                outputChannel.appendLine(`PowerShell stderr: ${stderr}`);
+            }
+
+            if (!fs.existsSync(resultJsonPath)) {
+                // 如果没有生成结果文件，可能是脚本执行失败
+                outputChannel.appendLine('未生成结果文件，可能脚本执行失败，执行默认粘贴');
                 vscode.commands.executeCommand('editor.action.clipboardPasteAction');
                 return;
             }
 
-            if (!fs.existsSync(tempPath)) {
-                vscode.window.showErrorMessage('无法保存剪贴板图片');
+            let result = null;
+            try {
+                let jsonContent = fs.readFileSync(resultJsonPath, 'utf8');
+                // 去除可能的 BOM 头 (PowerShell 5.1 Out-File -Encoding utf8 会添加 BOM)
+                if (jsonContent.charCodeAt(0) === 0xFEFF) {
+                    jsonContent = jsonContent.slice(1);
+                }
+                result = JSON.parse(jsonContent);
+            } catch (e) {
+                outputChannel.appendLine(`解析结果文件失败: ${e.message}`);
+                // 尝试读取原始文件内容以便调试
+                try {
+                    const rawContent = fs.readFileSync(resultJsonPath, 'utf8');
+                    outputChannel.appendLine(`原始文件内容: ${rawContent}`);
+                } catch (readErr) {}
+            } finally {
+                // 清理结果文件
+                if(fs.existsSync(resultJsonPath)) fs.unlinkSync(resultJsonPath);
+            }
+
+            if (!result || result.status !== "success") {
+                outputChannel.appendLine('剪贴板里没有图片或文件，执行默认粘贴');
+                vscode.commands.executeCommand('editor.action.clipboardPasteAction');
+                return;
+            }
+
+            let localFilePath = result.path;
+            let isTempFile = (result.type === 'image' && localFilePath.includes('temp_image_'));
+
+            if (!fs.existsSync(localFilePath)) {
+                vscode.window.showErrorMessage('无法读取文件: ' + localFilePath);
+                return;
+            }
+
+            // 检查文件大小 (限制 50MB，防止 base64 过大导致内存溢出或 GitHub API 拒绝)
+            const stats = fs.statSync(localFilePath);
+            const fileSizeInBytes = stats.size;
+            const fileSizeInMegabytes = fileSizeInBytes / (1024 * 1024);
+            if (fileSizeInMegabytes > 50) {
+                vscode.window.showErrorMessage(`文件过大 (${fileSizeInMegabytes.toFixed(2)} MB)。GitHub API 限制上传大小。请手动上传。`);
+                return;
+            }
+
+            // 检查文件类型
+            const ext = path.extname(localFilePath).toLowerCase();
+            const imageExts = ['.png', '.jpg', '.jpeg', '.gif', '.bmp', '.webp', '.svg', '.ico', '.tiff'];
+            const videoExts = ['.mp4', '.mov', '.webm', '.avi', '.mkv', '.flv', '.wmv'];
+            const audioExts = ['.mp3', '.wav', '.ogg', '.m4a', '.aac', '.flac'];
+            
+            let fileType = 'file';
+            if (imageExts.includes(ext)) {
+                fileType = 'image';
+            } else if (videoExts.includes(ext)) {
+                fileType = 'video';
+            } else if (audioExts.includes(ext)) {
+                fileType = 'audio';
+            }
+            
+            // 如果是目录，不支持
+            if (stats.isDirectory()) {
+                outputChannel.appendLine(`不支持上传目录: ${localFilePath}，执行默认粘贴`);
+                vscode.commands.executeCommand('editor.action.clipboardPasteAction');
                 return;
             }
 
             try {
-                // 3. 读取图片并上传
-                const imageBuffer = fs.readFileSync(tempPath);
-                const base64Image = imageBuffer.toString('base64');
-                const fileName = `assets/${Date.now()}.png`; // 存放在 assets 目录
+                // 3. 读取文件并上传
+                vscode.window.setStatusBarMessage(`Uploading ${fileType}...`, 3000);
+                const fileBuffer = fs.readFileSync(localFilePath);
+                const base64Content = fileBuffer.toString('base64');
+                const remoteFileName = `assets/${Date.now()}${ext}`; // 存放在 assets 目录
                 
-                const response = await uploadToGitHub(repo, token, fileName, base64Image);
+                const response = await uploadToGitHub(repo, token, remoteFileName, base64Content);
                 
                 if (response && (response.content || response.commit)) {
                     // 4. 插入 Markdown 链接
                     // 使用 jsDelivr CDN 加速
                     // 格式: https://cdn.jsdelivr.net/gh/user/repo/path (不指定分支，自动用默认分支)
-                    const cdnUrl = `https://cdn.jsdelivr.net/gh/${repo}/${fileName}`;
+                    const cdnUrl = `https://cdn.jsdelivr.net/gh/${repo}/${remoteFileName}`;
                     outputChannel.appendLine(`上传成功，CDN链接: ${cdnUrl}`);
                     
                     editor.edit(editBuilder => {
                         const position = editor.selection.active;
-                        editBuilder.insert(position, `![](${cdnUrl})`);
+                        if (fileType === 'video') {
+                            editBuilder.insert(position, `<video src="${cdnUrl}" controls width="100%"></video>`);
+                        } else if (fileType === 'audio') {
+                            editBuilder.insert(position, `<audio src="${cdnUrl}" controls></audio>`);
+                        } else if (fileType === 'image') {
+                            editBuilder.insert(position, `![](${cdnUrl})`);
+                        } else {
+                            // 其他文件，插入链接
+                            const fileName = path.basename(localFilePath);
+                            editBuilder.insert(position, `[${fileName}](${cdnUrl})`);
+                        }
                     });
-                    vscode.window.showInformationMessage('图片上传成功!');
+                    vscode.window.showInformationMessage('上传成功!');
                 } else {
                     vscode.window.showErrorMessage('上传失败，请检查 Token 权限');
                 }
@@ -95,7 +193,7 @@ if ($img -ne $null) {
                 vscode.window.showErrorMessage(`上传出错: ${error.message}`);
             } finally {
                 // 清理临时图片
-                if (fs.existsSync(tempPath)) fs.unlinkSync(tempPath);
+                if (isTempFile && fs.existsSync(localFilePath)) fs.unlinkSync(localFilePath);
             }
         });
     });
@@ -106,7 +204,7 @@ if ($img -ne $null) {
 function uploadToGitHub(repo, token, path, content) {
     return new Promise((resolve, reject) => {
         const data = JSON.stringify({
-            message: `Upload image ${path}`,
+            message: `Upload ${path}`,
             content: content
         });
 

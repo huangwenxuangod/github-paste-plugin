@@ -1,10 +1,23 @@
 {
   "name": "github-paste-plugin",
   "displayName": "GitHub Paste Plugin",
-  "description": "Custom paste image to GitHub",
+  "publisher": "local-user",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/local-user/github-paste-plugin"
+  },
+  "description": "Custom paste image, video, audio, or file to GitHub",
   "version": "0.0.1",
   "engines": {
     "vscode": "^1.70.0"
+  },
+  "scripts": {
+    "package": "vsce package"
+  },
+  "devDependencies": {
+    "@types/node": "^16.x",
+    "@types/vscode": "^1.70.0",
+    "@vscode/vsce": "^2.15.0"
   },
   "activationEvents": [
     "onCommand:extension.pasteImageToGitHub"
@@ -14,7 +27,7 @@
     "commands": [
       {
         "command": "extension.pasteImageToGitHub",
-        "title": "Paste Image to GitHub"
+        "title": "Paste Image/File to GitHub"
       }
     ],
     "keybindings": [
