@@ -1,0 +1,42 @@
+{
+  "name": "github-paste-plugin",
+  "displayName": "GitHub Paste Plugin",
+  "description": "Custom paste image to GitHub",
+  "version": "0.0.1",
+  "engines": {
+    "vscode": "^1.70.0"
+  },
+  "activationEvents": [
+    "onCommand:extension.pasteImageToGitHub"
+  ],
+  "main": "./extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "extension.pasteImageToGitHub",
+        "title": "Paste Image to GitHub"
+      }
+    ],
+    "keybindings": [
+      {
+        "command": "extension.pasteImageToGitHub",
+        "key": "ctrl+v",
+        "mac": "cmd+v",
+        "when": "editorTextFocus && editorLangId == markdown && !editorReadonly"
+      }
+    ],
+    "configuration": {
+      "title": "GitHub Paste Plugin",
+      "properties": {
+        "githubPastePlugin.token": {
+          "type": "string",
+          "description": "GitHub Personal Access Token"
+        },
+        "githubPastePlugin.repo": {
+          "type": "string",
+          "description": "GitHub Repository (e.g. username/repo)"
+        }
+      }
+    }
+  }
+}
