@@ -14,15 +14,29 @@ function activate(context) {
 
         // 1. 获取配置
         const config = vscode.workspace.getConfiguration('githubPastePlugin');
-        const token = config.get('token');
-        const repo = config.get('repo');
+        const tokenInfo = config.inspect('token');
+        const repoInfo = config.inspect('repo');
+        const tokenScoped = tokenInfo ? (tokenInfo.workspaceFolderValue ?? tokenInfo.workspaceValue) : undefined;
+        const repoScoped = repoInfo ? (repoInfo.workspaceFolderValue ?? repoInfo.workspaceValue) : undefined;
+        const token = tokenScoped ?? (tokenInfo ? tokenInfo.globalValue : undefined);
+        const repo = repoScoped ?? (repoInfo ? repoInfo.globalValue : undefined);
         const cdnBranchRaw = config.get('cdnBranch');
         const cdnBranch = typeof cdnBranchRaw === 'string' ? cdnBranchRaw.trim() : '';
 
-        if (!token || !repo) {
-            vscode.window.showErrorMessage('请先在设置中配置 githubPastePlugin.token 和 githubPastePlugin.repo');
+        const repoString = typeof repo === 'string' ? repo.trim() : '';
+        const tokenString = typeof token === 'string' ? token.trim() : '';
+        const repoHasInvalidPrefix = /^https?:\/\//i.test(repoString);
+        const repoHasBranch = /@/.test(repoString);
+        if (!tokenString || !repoString) {
+            outputChannel.appendLine('未配置 Token 或 Repo，执行默认粘贴');
+            await vscode.commands.executeCommand('editor.action.clipboardPasteAction');
             return;
         }
+        if (repoHasInvalidPrefix || repoHasBranch) {
+            vscode.window.showErrorMessage('Repo 格式不正确（仅支持 owner/repo，且不要包含 https:// 或 @分支）');
+            return;
+        }
+        outputChannel.appendLine(`配置已加载：repo=${repoString}，cdnBranch=${cdnBranch || '(default)'}，token=${tokenString ? 'set' : 'empty'}`);
 
         // 0. 优先检查剪贴板文本
         // 如果剪贴板里有文本，说明用户可能在粘贴代码或文字，此时直接调用原生粘贴，不走图片上传流程
@@ -119,6 +133,7 @@ $result | ConvertTo-Json -Compress | Out-File -FilePath "${resultJsonPath}" -Enc
 
             let localFilePath = result.path;
             let isTempFile = (result.type === 'image' && localFilePath.includes('temp_image_'));
+            outputChannel.appendLine(`剪贴板解析结果：type=${result.type}，path=${localFilePath}`);
 
             if (!fs.existsSync(localFilePath)) {
                 vscode.window.showErrorMessage('无法读取文件: ' + localFilePath);
@@ -133,6 +148,7 @@ $result | ConvertTo-Json -Compress | Out-File -FilePath "${resultJsonPath}" -Enc
                 vscode.window.showErrorMessage(`文件过大 (${fileSizeInMegabytes.toFixed(2)} MB)。GitHub API 限制上传大小。请手动上传。`);
                 return;
             }
+            outputChannel.appendLine(`文件信息：sizeMB=${fileSizeInMegabytes.toFixed(2)}`);
 
             // 检查文件类型
             const ext = path.extname(localFilePath).toLowerCase();
@@ -148,6 +164,7 @@ $result | ConvertTo-Json -Compress | Out-File -FilePath "${resultJsonPath}" -Enc
             } else if (audioExts.includes(ext)) {
                 fileType = 'audio';
             }
+            outputChannel.appendLine(`文件类型判定：ext=${ext}，fileType=${fileType}`);
             
             // 如果是目录，不支持
             if (stats.isDirectory()) {
@@ -162,13 +179,14 @@ $result | ConvertTo-Json -Compress | Out-File -FilePath "${resultJsonPath}" -Enc
                 const fileBuffer = fs.readFileSync(localFilePath);
                 const base64Content = fileBuffer.toString('base64');
                 const remoteFileName = `assets/${Date.now()}${ext}`; // 存放在 assets 目录
+                outputChannel.appendLine(`上传路径：${repoString}/${remoteFileName}`);
                 
-                const response = await uploadToGitHub(repo, token, remoteFileName, base64Content);
+                const response = await uploadToGitHub(repoString, tokenString, remoteFileName, base64Content);
                 
                 if (response && (response.content || response.commit)) {
                     const normalizedBranch = cdnBranch.replace(/^@/, '').replace(/^refs\/heads\//, '');
                     const branchSegment = normalizedBranch ? `@${normalizedBranch}` : '';
-                    const cdnUrl = `https://cdn.jsdelivr.net/gh/${repo}${branchSegment}/${remoteFileName}`;
+                    const cdnUrl = `https://cdn.jsdelivr.net/gh/${repoString}${branchSegment}/${remoteFileName}`;
                     outputChannel.appendLine(`上传成功，CDN链接: ${cdnUrl}`);
                     
                     editor.edit(editBuilder => {
