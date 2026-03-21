@@ -35,6 +35,7 @@
     - 搜索 `githubPastePlugin`。
     - **Github Paste Plugin: Token**：在此处粘贴你的 GitHub Personal Access Token。
     - **Github Paste Plugin: Repo**：输入你想用来存储图片的仓库（格式：`用户名/仓库名`，例如 `johndoe/my-image-assets`）。
+    - **Github Paste Plugin: Cdn Branch**：可选，填写分支名（例如 `main`）。建议填写以避免默认分支变更导致 404。
 
 ## 使用方法
 
@@ -50,16 +51,16 @@
     - 如果是其他文件，插入文件下载链接。
 
    ```markdown
-   ![](https://cdn.jsdelivr.net/gh/username/repository/assets/1678899000000.png)
+   ![](https://cdn.jsdelivr.net/gh/username/repository@main/assets/1678899000000.png)
    
    <!-- 视频 -->
-   <video src="https://cdn.jsdelivr.net/gh/username/repository/assets/1678899000000.mp4" controls width="100%"></video>
+   <video src="https://cdn.jsdelivr.net/gh/username/repository@main/assets/1678899000000.mp4" controls width="100%"></video>
 
    <!-- 音频 -->
-   <audio src="https://cdn.jsdelivr.net/gh/username/repository/assets/1678899000000.mp3" controls></audio>
+   <audio src="https://cdn.jsdelivr.net/gh/username/repository@main/assets/1678899000000.mp3" controls></audio>
    
    <!-- 其他文件 -->
-   [document.pdf](https://cdn.jsdelivr.net/gh/username/repository/assets/1678899000000.pdf)
+   [document.pdf](https://cdn.jsdelivr.net/gh/username/repository@main/assets/1678899000000.pdf)
    ```
 
 ## 开发

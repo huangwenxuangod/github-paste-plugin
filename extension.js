@@ -16,6 +16,8 @@ function activate(context) {
         const config = vscode.workspace.getConfiguration('githubPastePlugin');
         const token = config.get('token');
         const repo = config.get('repo');
+        const cdnBranchRaw = config.get('cdnBranch');
+        const cdnBranch = typeof cdnBranchRaw === 'string' ? cdnBranchRaw.trim() : '';
 
         if (!token || !repo) {
             vscode.window.showErrorMessage('请先在设置中配置 githubPastePlugin.token 和 githubPastePlugin.repo');
@@ -164,10 +166,9 @@ $result | ConvertTo-Json -Compress | Out-File -FilePath "${resultJsonPath}" -Enc
                 const response = await uploadToGitHub(repo, token, remoteFileName, base64Content);
                 
                 if (response && (response.content || response.commit)) {
-                    // 4. 插入 Markdown 链接
-                    // 使用 jsDelivr CDN 加速
-                    // 格式: https://cdn.jsdelivr.net/gh/user/repo/path (不指定分支，自动用默认分支)
-                    const cdnUrl = `https://cdn.jsdelivr.net/gh/${repo}/${remoteFileName}`;
+                    const normalizedBranch = cdnBranch.replace(/^@/, '').replace(/^refs\/heads\//, '');
+                    const branchSegment = normalizedBranch ? `@${normalizedBranch}` : '';
+                    const cdnUrl = `https://cdn.jsdelivr.net/gh/${repo}${branchSegment}/${remoteFileName}`;
                     outputChannel.appendLine(`上传成功，CDN链接: ${cdnUrl}`);
                     
                     editor.edit(editBuilder => {

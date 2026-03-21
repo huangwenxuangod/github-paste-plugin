@@ -8,7 +8,7 @@
   },
   "description": "Custom paste image, video, audio, or file to GitHub",
   "icon": "images/icon.png",
-  "version": "0.0.3",
+  "version": "0.0.4",
   "engines": {
     "vscode": "^1.70.0"
   },
@@ -49,6 +49,10 @@
         "githubPastePlugin.repo": {
           "type": "string",
           "description": "GitHub Repository (e.g. username/repo)"
+        },
+        "githubPastePlugin.cdnBranch": {
+          "type": "string",
+          "description": "jsDelivr branch (e.g. main). Leave empty to use default branch"
         }
       }
     }
